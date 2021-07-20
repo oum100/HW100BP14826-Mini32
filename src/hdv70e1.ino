@@ -913,35 +913,45 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
 
   }else if(action == "ota"){
     WiFiClientSecure clientForOta;
+    int updatedFlag = 0;
 
     esp32OTA._host="www.flipup.net"; //e.g. example.com
     esp32OTA._descriptionOfFirmwareURL="/firmware/HDV70E1/firmware.json"; //e.g. /my-fw-versions/firmware.json
     //esp32OTA._certificate=test_root_ca;
     esp32OTA.clientForOta=clientForOta;
+    esp32OTA._firwmareVersion = cfginfo.asset.firmware;
   
     bool shouldExecuteFirmwareUpdate=esp32OTA.execHTTPSCheck();
     if(shouldExecuteFirmwareUpdate){
-      cfginfo.asset.firmware = esp32OTA._firwmareVersion.c_str();      
-      //saveCFG(cfginfo,LITTLEFS);
-      
-      //set stateflag = 2 flag
-      cfgdata.begin("config",false);
-      cfgdata.putInt("stateflag",2);
-      cfgdata.end();
+      updatedFlag = esp32OTA.executeOTA();
+      if(updatedFlag == 1){
+        cfginfo.asset.firmware = esp32OTA._firwmareVersion.c_str();    
 
-      doc.clear();
-      doc["response"] = "ota";
-      doc["merchantid"]=cfginfo.payboard.merchantid;
-      doc["uuid"]=cfginfo.payboard.uuid;
-      doc["firmware"] = esp32OTA._firwmareVersion;
-      doc["state"] = "accepted";
-      doc["disc"] = "Firmware upgrading then rebooting in few second."; 
-      serializeJson(doc,jsonmsg);
-      Serial.print("Jsonmsg: ");Serial.println(jsonmsg);
-      Serial.print("Ver: "); Serial.println(esp32OTA._firwmareVersion);
+        //set stateflag = 2 flag
+        cfgdata.begin("config",false);
+        cfgdata.putInt("stateflag",2);
+        cfgdata.putString("firmware",cfginfo.asset.firmware);
+        cfgdata.end();
 
-      Serial.println("Firmware updating, It's will take few second");
-      esp32OTA.executeOTA();
+        doc.clear();
+        doc["response"] = "ota";
+        doc["merchantid"]=cfginfo.payboard.merchantid;
+        doc["uuid"]=cfginfo.payboard.uuid;
+        doc["firmware"] = cfginfo.asset.firmware;
+        doc["state"] = "accepted";
+        doc["disc"] = "Firmware upgrading then rebooting in few second."; 
+
+        serializeJson(doc,jsonmsg);
+        Serial.print("Jsonmsg: ");Serial.println(jsonmsg);
+        Serial.print("Ver: "); Serial.println(cfginfo.asset.firmware.c_str());
+        Serial.println("Firmware updating, It's will take few second");
+      }else{
+        doc["merchanttid"] = cfginfo.payboard.merchantid;
+        doc["uuid"] = cfginfo.payboard.uuid;
+        doc["response"] = "ota";
+        doc["state"] = "FAILED";
+        doc["desc"] = "Firmware update failed, Error code:" + String(updatedFlag); 
+      }
     }else{
       doc["merchanttid"] = cfginfo.payboard.merchantid;
       doc["uuid"] = cfginfo.payboard.uuid;
@@ -964,8 +974,11 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       mqflipup.publish(pbPubTopic.c_str(),jsonmsg.c_str());
     #endif
 
-    delay(500); 
-
+    delay(1000);
+    if(updatedFlag == 1){
+      ESP.restart();  
+    }
+  
   }else if(action == "setwifi"){
     // {"action":"setwifi","index":"1","ssid":"Home173-AIS","key":"1100110011","reconnect":"1"}
 

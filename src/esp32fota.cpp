@@ -460,7 +460,135 @@ This function launches an OTA, using the attributes of the class that describe i
 server, url and certificate.
 */
 
-void secureEsp32FOTA::executeOTA()
+int secureEsp32FOTA::executeOTA()
+{
+    char *certificate = _certificate;
+
+    Serial.println("location of fw " + String(locationOfFirmware) + _bin + " HTTP/1.0");
+
+    bool canCorrectlyConnectToServer = prepareConnection(locationOfFirmware);
+    int contentLength;
+    bool isValid=false;
+    bool gotHTTPStatus = false;
+    if (canCorrectlyConnectToServer)
+    {
+        //Serial.println("ok");
+
+        clientForOta.println("GET https://" + String(locationOfFirmware) + _bin + " HTTP/1.0");
+        clientForOta.println("Host: " + String(locationOfFirmware) + "");
+        clientForOta.println("Connection: close");
+        clientForOta.println();
+
+        while (clientForOta.connected())
+        {
+            String header, headerValue;
+            // read line till /n
+            String line = clientForOta.readStringUntil('\n');
+            // remove space, to check if the line is end of headers
+            line.trim();
+
+            if (!line.length())
+            {
+                //headers ended
+                break; // and get the OTA started
+            }
+
+            if (line.startsWith("HTTP/1.1"))
+            {
+                if (line.indexOf("200") < 0)
+                {
+                    //Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+                    break;
+                }
+                gotHTTPStatus = true;
+            }
+
+            if (false == gotHTTPStatus)
+            {
+                continue;
+            }
+
+            splitHeader(line, header, headerValue);
+            // extract headers here
+            // Start with content length
+            if (header.equalsIgnoreCase("Content-Length"))
+            {
+                contentLength = headerValue.toInt();
+                continue;
+            }
+
+            // Next, the content type
+            if (header.equalsIgnoreCase("Content-Type"))
+            {
+                isValid = isValidContentType(headerValue);
+            }
+        }
+
+        if (contentLength && isValid)
+        {
+            //Serial.println("beginn");
+            Serial.print("Content Length: "); //Teerin
+            Serial.println(contentLength);//Teerin
+
+            bool canBegin = Update.begin(contentLength);
+            if (canBegin)
+            {
+                //Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
+
+                size_t written = Update.writeStream(clientForOta);
+
+                if (written == contentLength)
+                {
+                    //Serial.println("Written : " + String(written) + " successfully");
+                }
+                else
+                {
+                    //Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?");
+                }
+
+                if (Update.end())
+                {
+                    Serial.println("OTA done!");
+                    if (Update.isFinished())
+                    {
+                        Serial.println("Update successfully completed. Rebooting.");
+                        return 1;
+                        //ESP.restart();
+                    }
+                    else
+                    {
+                        Serial.println("Update not finished? Something went wrong!");
+                        return 2;
+                    }
+                }
+                else
+                {
+                    Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+                    return 3;
+                }
+            }
+            else
+            {
+            	Serial.println(canBegin);  //Teerin
+                Serial.println(" could not begin");
+                return 4;
+            }
+        }
+        else
+        {
+            Serial.println("Content invalid");
+            return 5;
+        }
+    }
+    else
+    {
+        Serial.println("Generic error");
+        return 6;
+    }
+}
+
+
+void secureEsp32FOTA::executeOTA_REBOOT()
 {
     char *certificate = _certificate;
 

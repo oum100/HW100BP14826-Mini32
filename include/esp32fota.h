@@ -36,7 +36,8 @@ class secureEsp32FOTA
 public:
   secureEsp32FOTA(String firwmareType, String firwmareVersion);
   bool execHTTPSCheck();
-  void executeOTA();
+  int executeOTA();
+  void executeOTA_REBOOT();
   String _descriptionOfFirmwareURL;
   char *_certificate;
   WiFiClientSecure clientForOta;
