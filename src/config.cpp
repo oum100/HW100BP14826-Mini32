@@ -13,6 +13,73 @@ IPAddress SoftAP_GW(192,168,8,1);
 IPAddress SoftAP_SUBNET(255,255,255,0);
 
 
+void getnvPbCFG(Preferences nvcfg, Config &cfg){
+  Serial.printf("  Getting Payboard Configuration from NV\n");
+  nvcfg.begin("config",false);
+    cfg.payboard.merchantid = nvcfg.getString("merchantid");
+    cfg.payboard.mqttuser = cfg.payboard.merchantid;
+    cfg.payboard.merchantkey = nvcfg.getString("merchantkey");
+    cfg.payboard.mqttpass = cfg.payboard.merchantkey;
+    cfg.payboard.apihost =nvcfg.getString("apihost");
+    cfg.payboard.apikey = nvcfg.getString("apikey");
+    cfg.payboard.mqtthost = nvcfg.getString("mqtthost");
+    cfg.payboard.mqttport = nvcfg.getInt("mqttport");
+  Serial.printf("  Completed get Payboard Configuration\n");
+  nvcfg.end();
+}
+
+void getnvAssetCFG(Preferences nvcfg, Config &cfg){
+  Serial.printf("  Getting Asset Configuration from NV\n");
+  nvcfg.begin("config",false);
+    cfg.asset.assetid = nvcfg.getString("assetid");
+    cfg.asset.orderid = nvcfg.getString("orderid");
+    cfg.asset.firmware = nvcfg.getString("firmware");
+    cfg.asset.coinModule = nvcfg.getInt("coinModule");
+    cfg.asset.assettype = nvcfg.getInt("assettype");
+    cfg.asset.user=nvcfg.getString("user");
+    cfg.asset.pass=nvcfg.getString("pass");
+  Serial.printf("  Completed get Asset Configuration\n");
+  nvcfg.end();
+}
+
+void getnvBackend(Preferences nvcfg, Config &cfg){
+  Serial.printf("  Getting Backend Configuration from NV\n");
+  nvcfg.begin("config",false);
+    cfg.backend.apihost = nvcfg.getString("apihost");
+    cfg.backend.apikey = nvcfg.getString("apikey");
+    cfg.backend.mqtthost = nvcfg.getString("mqtthost");
+    cfg.backend.mqttpass = nvcfg.getString("mqttpass");
+    cfg.backend.mqttport = nvcfg.getInt("mqttport");
+    cfg.backend.mqttuser = nvcfg.getString("mqttuser");
+  Serial.printf("  Completed get Backend Configuration\n");
+  nvcfg.end();
+}
+
+void getnvProduct(Preferences nvcfg, Config &cfg){
+  Serial.printf("  Getting Product Configuration from NV\n");
+  nvcfg.begin("config",false);
+    if(nvcfg.isKey("sku1")){
+        cfg.product[0].sku = nvcfg.getString("sku1");
+        cfg.product[0].price = nvcfg.getFloat("price1");
+        cfg.product[0].stime = nvcfg.getInt("stime1");
+    }
+
+    if(nvcfg.isKey("sku2")){
+        cfg.product[1].sku = nvcfg.getString("sku2");
+        cfg.product[1].price = nvcfg.getFloat("price2");
+        cfg.product[1].stime = nvcfg.getInt("stime2");
+    }
+
+    if(nvcfg.isKey("sku3")){
+        cfg.product[2].sku = nvcfg.getString("sku3");
+        cfg.product[2].price = nvcfg.getFloat("price3");
+        cfg.product[2].stime = nvcfg.getInt("stime3");
+    }
+  Serial.printf("  Completed get Product Configuration\n");
+  nvcfg.end();  
+}
+
+
 void getNVCFG(Preferences nvcfg, Config &cfg){
     Serial.printf("  Execute---getNVCFG Function\n");
     nvcfg.begin("config",false);
@@ -80,9 +147,6 @@ void getNVCFG(Preferences nvcfg, Config &cfg){
             cfg.product[2].price = nvcfg.getFloat("price3");
             cfg.product[2].stime = nvcfg.getInt("stime3");
         }
-
-
-
     nvcfg.end();
 }
 
@@ -218,12 +282,16 @@ void initCFG(Config &cfg){
       cfg.product[2].stime = 40;   
     }else{
       cfg.product[0].sku = "P1";
-      cfg.product[0].price = 40;
+      cfg.product[0].price = 0;
       cfg.product[0].stime = 60;
 
       cfg.product[1].sku = "P2";
-      cfg.product[1].price = 10;
-      cfg.product[1].stime = 15;
+      cfg.product[1].price = 0;
+      cfg.product[1].stime = 75;
+
+      cfg.product[1].sku = "P3";
+      cfg.product[1].price = 0;
+      cfg.product[1].stime = 90;
     }
     
 

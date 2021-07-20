@@ -4,6 +4,7 @@
 #define hdv70e1_h
 
 #include<Arduino.h>
+#include "animation.h"
     #define POWER_RLY    26
     #define BOOK_LED    18
     #define DSTATE      19
@@ -16,6 +17,9 @@
     #define MACHINEDC   34
     #define UNLOCK      32
 
+    #define RXD2 16
+    #define TXD2 17
+
     #define RXDU1       27 // DIO
     #define TXDU1       25 // CLK
 
@@ -25,7 +29,7 @@
     #define BUZZ        4
     #define WIFI_LED    2
 
-    #define INTERRUPT_SET ( (1ULL<<MODESW) |(1ULL<<COININ) |(1ULL<<COINDOOR) )
+    #define INTERRUPT_SET ( (1ULL<<MODESW) |(1ULL<<COININ) |(1ULL<<COINDOOR) | (1ULL<<DSTATE))
     #define INPUT_SET ( (1ULL<<DSTATE) |(1ULL<<MACHINEDC) )
     #define OUTPUT_SET ( (1ULL<<POWER_RLY) |(1ULL<<ENPANEL) | (1ULL<<ENCOIN) |(1ULL<<UNLOCK) |(1ULL<<BUZZ) |(1ULL<<BOOK_LED) |(1ULL<<WIFI_LED))
 
@@ -53,17 +57,32 @@
 class HDV70E1 {
     public:
         byte ctrlbytes[7] = {0X55,0xAA,0x00,0x00,0x00,0x50,0x50};
+        
+        //byte 0 1 2 3 4 5 6
+        //byte 2: value = 0x02 = Option btn,   0x01 = start btn;
+        //byte 4: is rotary, value is number of turning.
+        //byte 6: is sumation of byte 2 4 5
+
         enum rotaryMODE {NORMAL,EXTRA,MIN30,MIN60,MIN90,MIN120,MIN150,MIN180,IRON};
-        enum buttonMODE {NOFUNC,START,OPTION};
+        enum buttonMODE {NOFUNC,START,OPTION,TEMP};
+        enum powerMODE {TURNOFF, TURNON};
 
         HDV70E1(void);
         void ctrlRotary(rotaryMODE prog);
+        void ctrlRotary(rotaryMODE prog,int dtime);
+
         void ctrlButton(buttonMODE btn);
-        void runProgram(int pwrPin,int machinePwr,int doorState,rotaryMODE prog);
-        void powerCtrl(int pwrPin, int machinePwr,bool mode); // ON = 1, 0 = OFF
+        void ctrlButton(buttonMODE btn,int nturn,int dtime);
+
+        int runProgram(int pwrPin,int machinePwr,int doorState,rotaryMODE prog,digitdisplay &disp,int &err);
+        bool powerCtrl(int pwrPin, int machinePwr,powerMODE mode); // ON = 1, 0 = OFF
         void singlePulse(int pin, int period, bool startlogic);
-        bool isDoorClose(int pin);
-        bool isMachineON(int pin);
+        bool isDoorClose(int pin); // 1 = Door Close,  0, Door Open
+
+        bool isMachineON(int pin);// 1 = ON, 0 = Off
+        bool isMachineON(int pin,int &err);// 1 = ON, 0 = Off
+
+        void showPanel(void);
 };
 
 void boardTest(void);

@@ -1,8 +1,21 @@
 #include "hdv70e1.h"
+#include "animation.h"
 
 HDV70E1::HDV70E1(){
    
 }
+
+
+void HDV70E1::showPanel(){
+    Serial.printf("[showPanel]->activate panel\n");
+    for(int i=0; i<5;i++){
+        ctrlbytes[2] = 0;
+        ctrlbytes[6] = 0x50 + ctrlbytes[4] + ctrlbytes[2];
+        Serial2.write(ctrlbytes, sizeof(ctrlbytes));
+        delay(50);
+    }
+}
+
 
 void HDV70E1::ctrlRotary(rotaryMODE prog){
   //Default ctrlbytes  0x55,0xaa,0x00,0x00,0x00,0x50,0x50
@@ -13,7 +26,7 @@ void HDV70E1::ctrlRotary(rotaryMODE prog){
   for(int i = 0 ; i <= (prog*5) ; i++){
     if(i == 5){
       if(valuein != prog){
-         ctrlbytes[4] += 0x01 ;
+         ctrlbytes[4] += 0x01;
          valuein += 1;
          i = 0;
          Serial.print("Round: ");Serial.println(valuein);
@@ -25,12 +38,47 @@ void HDV70E1::ctrlRotary(rotaryMODE prog){
     }
     ctrlbytes[6] = 0x50 + ctrlbytes[4] + ctrlbytes[2];
     Serial2.write(ctrlbytes, sizeof(ctrlbytes));
-    delay(20);
+    delay(50);
   }
 }
 
 
+void HDV70E1::ctrlRotary(rotaryMODE prog,int dtime){
+  Serial.printf("Rotate CW for %d times\n",prog);
+  //Send ready command 
+  ctrlbytes[2] = 0;
+  ctrlbytes[6] = 0x50 + ctrlbytes[4] + ctrlbytes[2];
+  Serial2.write(ctrlbytes, sizeof(ctrlbytes));
+
+  //Send Rotation command
+  for(int i=0;i<prog;i++){
+      ctrlbytes[4] += 1;
+      ctrlbytes[6] = 0x50 + ctrlbytes[4] + ctrlbytes[2];
+      Serial2.write(ctrlbytes, sizeof(ctrlbytes));
+      delay(50);
+  }
+}
+
+
+void HDV70E1::ctrlButton(buttonMODE btn,int nturn,int dtime){
+    Serial.printf("Press button (1=Start, 2=Option): %d for %d times\n",btn,nturn);
+    for(int i=0;i<nturn;i++){
+        ctrlbytes[2] = 0x00;
+        ctrlbytes[6] = 0x50 + ctrlbytes[4] + ctrlbytes[2];
+        Serial2.write(ctrlbytes, sizeof(ctrlbytes));
+        delay(50);
+
+        ctrlbytes[2] = btn;
+        ctrlbytes[6] = 0x50 + ctrlbytes[4] + ctrlbytes[2];
+        Serial2.write(ctrlbytes, sizeof(ctrlbytes));
+        delay(50);
+    }
+}
+
+
 void HDV70E1::ctrlButton(buttonMODE btn){
+    //byte ctrlmsg;
+    
     if(btn == 1){
         Serial.printf("Pressing button: Start/Pause\n");
     }else if(btn == 2){
@@ -39,46 +87,72 @@ void HDV70E1::ctrlButton(buttonMODE btn){
 
     for(int i = 0 ; i <40 ; i++){
       if(i > 0 && i < 20){
-        ctrlbytes[2] = btn;
+        ctrlbytes[2] = (byte)btn;
       }
       if(i > 20 && i < 40){
-        ctrlbytes[2] = 0 ;  
+        ctrlbytes[2] = (byte)0 ;  
       }
 
       ctrlbytes[6] = 0x50 +  ctrlbytes[4] +  ctrlbytes[2];
+      Serial.printf("Inx: %d\n",i);  
+      Serial.print("Byte 2: ");Serial.println(byte(ctrlbytes[2]),HEX); 
+      Serial.print("Byte 4: ");Serial.println(byte(ctrlbytes[4]),HEX); 
+      Serial.print("Byte 6: ");Serial.println(byte(ctrlbytes[6]),HEX);
+      Serial.println();
       Serial2.write( ctrlbytes, sizeof( ctrlbytes));
 
-      Serial.print("ctrlbytes: ");Serial.println(byte( ctrlbytes[6]));
-      Serial.println(i);  Serial.println();
       delay(20);
     }
+    // ctrlbytes[2] += 0x00;
+    // ctrlbytes[6] += 0x50;
 }
 
 
-void HDV70E1::runProgram(int pwrPin,int machinePwr,int doorState,rotaryMODE prog){
-    int maxtry = 3;
+
+
+int HDV70E1::runProgram(int pwrPin,int machinePwr,int doorState,rotaryMODE prog,digitdisplay &disp,int &err){
+    //int maxtry = 10;
     int retry = 0;
-    this->powerCtrl(pwrPin,machinePwr,1); // Turn on machine
-    this->ctrlRotary(prog);
-    this->ctrlButton(OPTION);
-    
-    while( (!isDoorClose(doorState)) && (retry != maxtry)){
-        Serial.printf("Please close Door");
-        retry++;
-        delay(1000);
+
+    Serial.printf("[runProgram]->Execute PowerCtrl to turn on machine\n");
+   
+    if(powerCtrl(pwrPin,machinePwr,TURNON)){ // Turn on machine
+        delay(500);
+        while( (!isDoorClose(doorState))){
+            Serial.printf("[runProgram]->Door is open. Please close Door\n");
+            disp.print("do");
+            retry++;
+            sleep(5); // wait 30secs.
+        }
+        ctrlRotary(prog);
+        //ctrlButton(TEMP);
+        ctrlButton(OPTION);
+        delay(300);
+        ctrlButton(START);
+        return 1;
+    }else{
+        Serial.printf("[runProgram]-> Power On machine, But machine not ON\n");
+        disp.print("PE");
+        return 0;
     }
 }
 
-void HDV70E1::powerCtrl(int pwrPin, int machinePwr,bool mode){
+bool HDV70E1::powerCtrl(int pwrPin, int machinePwr,powerMODE mode){
+    
     if(mode == 1){ // Pwoer ON Machine
+        Serial.printf("[powerCtrl]->Turn on machine\n");
         if(!isMachineON(machinePwr)){
-            singlePulse(pwrPin,400,HIGH);            
+            singlePulse(pwrPin,400,HIGH);   
         }
     }else{ // POWER OFF Machine
+        Serial.printf("[powerCtrl]->Turn off machine\n");
         if(isMachineON(machinePwr)){
             singlePulse(pwrPin,400,HIGH);
         }
     }
+    delay(500);
+    //return isMachineON(machinePwr); 
+    return digitalRead(machinePwr);
 }
 
 void HDV70E1::singlePulse(int pin, int period, bool startlogic){
@@ -88,22 +162,28 @@ void HDV70E1::singlePulse(int pin, int period, bool startlogic){
     delay(period);
 }
 
+
 bool HDV70E1::isMachineON(int pin){
+    int err;
+    return isMachineON(pin,err);
+}
+
+bool HDV70E1::isMachineON(int pin,int &err){
     if(digitalRead(pin)){
-        Serial.printf("Machine ON\n");
+        Serial.printf("[isMachineOn]->Machine ON\n");
         return true;
     }else{
-        Serial.printf("Machine OFF\n");
+        Serial.printf("[isMachineOn]->Machine OFF\n");
         return false;
     }
 }
 
 bool HDV70E1::isDoorClose(int pin){
     if(digitalRead(pin)){
-        Serial.printf("Door CLOSE\n");
+        Serial.printf("[isDoorClose]->Door CLOSE\n");
         return true; // Door Close
     }else{
-        Serial.printf("Door OPEN\n");
+        Serial.printf("[isDoorClose]->Door OPEN\n");
         return false; //Door Open
     }
 }

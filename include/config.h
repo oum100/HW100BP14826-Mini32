@@ -74,6 +74,11 @@ void blinkGPIO(int pin, int btime);
 
 void initCFG(Config &cfg);
 void showCFG(Config &cfg);
+
+void getnvPbCFG(Preferences nvcfg, Config &cfg);
+void getnvBackend(Preferences nvcfg, Config &cfg);
+void getnvAssetCFG(Preferences nvcfg, Config &cfg);
+void getnvProduct(Preferences nvcfg, Config &cfg);
 void getNVCFG(Preferences nvcfg, Config &cfg);
 
 int loadWIFICFG(Preferences nvcfg,Config &cfg);
