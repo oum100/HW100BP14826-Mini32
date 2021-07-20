@@ -568,7 +568,7 @@ void loop() {
                 extpaid = coinValue - (price[0]-extpaid);
                 firstExtPaid = 0;
               }else{
-                extpaid = coinValue = price[0];
+                extpaid = coinValue - price[0];
                 firstExtPaid = 0;
               }
               
@@ -628,71 +628,6 @@ void loop() {
   #endif
 }
 //----------------------------------- END Of Loop Function Here -----------------------------------
-
-
-
-
-
-
-
-
-void prog2start(){ // 1st Extra pay
-  payboard backend;
-  String  response;
-  int rescode;
-
-
-  Serial.printf("Prog2: Extend time 15 mintures\n");
-  //Send update to backend
-  //Serial.printf("Update to backend and 10 bath\n");
-
-
-  serviceTimeID = serviceTime.after(60*1000*timeRemain,serviceEnd);
-  timeLeftID = timeLeft.every(60*1000*1,serviceLeft);
-  cfgState = 5;
-  cfgdata.begin("config",false);
-  cfgdata.putInt("stateflag",cfgState);
-  cfgdata.putInt("timeremain",timeRemain);
-  cfgdata.end();
-}
-
-
-
-
-void prog3start(){ //2nd Extra Pay
-  payboard backend;
-  String  response;
-  int rescode;
-
-  Serial.printf("Prog3: Extend time 15 mintures\n");
-
-  backend.merchantID=cfginfo.payboard.merchantid;
-  backend.merchantKEY=cfginfo.payboard.merchantkey;
-  backend.appkey=cfginfo.payboard.apikey;
-
-  while(!WiFi.isConnected()){
-    wifiMulti.run();
-  }
-
-
-
-  //Send update to backend
-  //Serial.printf("Update to backend and 10 bath\n");
-
-
-  serviceTimeID = serviceTime.after(60*1000*timeRemain,serviceEnd);
-  timeLeftID = timeLeft.every(60*1000*1,serviceLeft);
-
-  cfgState = 5;
-  cfgdata.begin("config",false);
-  cfgdata.putInt("stateflag",cfgState);
-  cfgdata.putInt("timeremain",timeRemain);
-  cfgdata.end();
-}
-
-
-
-
 
 
 void prog1start(){
