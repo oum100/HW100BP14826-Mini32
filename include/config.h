@@ -31,6 +31,7 @@ struct Payboard{
 
 struct Asset{
     String assetid;
+    String merchantid;
     String orderid;
     String mac;
     String model;

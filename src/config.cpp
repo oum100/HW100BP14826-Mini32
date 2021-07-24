@@ -32,6 +32,7 @@ void getnvAssetCFG(Preferences nvcfg, Config &cfg){
   Serial.printf("  Getting Asset Configuration from NV\n");
   nvcfg.begin("config",false);
     cfg.asset.assetid = nvcfg.getString("assetid");
+    cfg.asset.merchantid = nvcfg.getString("merchantid");
     cfg.asset.orderid = nvcfg.getString("orderid");
     cfg.asset.firmware = nvcfg.getString("firmware");
     cfg.asset.coinModule = nvcfg.getInt("coinModule");
@@ -86,6 +87,10 @@ void getNVCFG(Preferences nvcfg, Config &cfg){
 
         if(nvcfg.isKey("assetid")){
             cfg.asset.assetid = nvcfg.getString("assetid");
+        }
+
+        if(nvcfg.isKey("merchantid")){
+            cfg.asset.merchantid = nvcfg.getString("merchantid");
         }
 
         if(nvcfg.isKey("orderid")){
@@ -158,6 +163,7 @@ void showCFG(Config &cfg){
 
     Serial.printf("\nAsset Configuration\n");
     Serial.printf("  AssetID: %s\n",cfg.asset.assetid.c_str());
+    Serial.printf("  MerchantID: %s\n",cfg.asset.merchantid.c_str());
     Serial.printf("  Orderid: %s\n",cfg.asset.orderid.c_str());
     Serial.printf("  CoinType: %d\n",cfg.asset.coinModule);
     Serial.printf("  AssetType: %d\n",cfg.asset.assettype);
@@ -252,6 +258,7 @@ void initCFG(Config &cfg){
 
 
     cfg.asset.assetid="";
+    cfg.asset.merchantid ="07202100001";
     cfg.asset.orderid="";
     cfg.asset.assettype=DRYER; // 0 = WASHER, 1 = DRYER
     cfg.asset.coinModule=SINGLE; //  SINGLE=0, MULTI=1

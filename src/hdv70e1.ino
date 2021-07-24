@@ -48,6 +48,7 @@ WiFiMulti wifiMulti;
 WiFiClient espclient;
 PubSubClient mqclient(espclient);
 
+#define FLIPUPMQTT
 #ifdef FLIPUPMQTT
   WiFiClient fpclient;
   PubSubClient mqflipup(fpclient);
@@ -64,6 +65,11 @@ PubSubClient mqclient(espclient);
 String pbRegTopic PROGMEM = "payboard/register";
 String pbPubTopic PROGMEM = "payboard/backend/"; // payboard/backend/<merchantid>/<uuid>
 String pbSubTopic PROGMEM = "payboard/"; //   payboard/<merchantid>/<uuid>
+
+#ifdef FLIPUPMQTT
+String fpPubTopic PROGMEM = "/flipup/backend";
+String fpSubTopic PROGMEM = "/flipup/";
+#endif
 //Remainding time 
 
 
@@ -90,7 +96,7 @@ void gpio_task(void *arg){
             Serial.printf("\nGPIO[%d] intr, val: %d \n", io_num, gpio_get_level(io_num));
         } 
 
-        switch (io_num){
+        switch(io_num){
             case COININ:
                 if(gpio_get_level(io_num) == 0){
                   paymentby = 1;  // Set 1 = paymentby COIN
@@ -160,10 +166,10 @@ void setup() {
   Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
   Serial.printf("Start setup device ...\n");
 
-  //display.print("FE");
   display.begin();
   display.setBacklight(30);
-  display.print("F0"); 
+  display.print("St"); //Setup
+  delay(200);
   
 
   //******* Initial GPIO
@@ -175,7 +181,8 @@ void setup() {
 
 
   //******* WiFi Setting
-  display.print("F1");
+  display.print("Cn"); //Config Network
+  delay(200);
   WiFi.mode(WIFI_AP_STA);
   wifiMulti.addAP("Home173-AIS","1100110011");
   wifiMulti.addAP("myWiFi","1100110011");
@@ -197,14 +204,17 @@ void setup() {
   Serial.printf("WiFi Connected...");
   WiFiinfo();
 
-  display.print("F2");
-  
+  display.print("LC"); // Load Config
+  delay(200);
   //initCFG(cfginfo); 
   Serial.printf("Load default configuration.\n");
   initCFG(cfginfo); 
   
   cfginfo.deviceid = getdeviceid();
+  cfginfo.asset.assetid = cfginfo.deviceid;
   cfginfo.asset.mac = WiFi.macAddress();
+
+
   Serial.println();
   Serial.printf("Device ID: %s\n",cfginfo.deviceid.c_str());
   Serial.printf("MacAddress: %s\n",cfginfo.asset.mac.c_str());
@@ -247,6 +257,8 @@ void setup() {
     Serial.printf("Getting UUID from NV-RAM: %s\n",cfginfo.payboard.uuid.c_str());
   }else{//Device not register
     Serial.printf("Device not register.\n");
+    display.print("dF"); // Device Fail
+    delay(200);
     Serial.printf("  Automatic register to backend...Please wait.\n");
     Serial.printf("  MAC Address: %s\n",cfginfo.asset.mac.c_str());
     Serial.printf("  MerchantID: %s\n",cfginfo.payboard.merchantid.c_str());
@@ -264,7 +276,6 @@ void setup() {
       Serial.printf("Save uuid completed: %s\n",cfginfo.payboard.uuid.c_str());
     }else{
       Serial.printf("Rescode: %d\n",rescode);
-      display.print("E4");
     }
   }
   cfgdata.end();
@@ -274,13 +285,28 @@ void setup() {
   pbPubTopic = pbPubTopic  + String(cfginfo.payboard.merchantid) +"/"+ String(cfginfo.payboard.uuid);
   pbSubTopic = pbSubTopic + String(cfginfo.payboard.merchantid) +"/"+ String(cfginfo.payboard.uuid);
 
+  #ifdef FLIPUPMQTT
+  fpPubTopic = fpPubTopic + String(cfginfo.asset.merchantid) +"/"+ String(cfginfo.asset.assetid);
+  fpSubTopic = fpSubTopic + String(cfginfo.asset.merchantid) +"/"+ String(cfginfo.asset.assetid);
+  #endif
+
+    //Keep WiFi connection
+  while(!WiFi.isConnected()){
+    display.print("nF");
+    digitalWrite(WIFI_LED,LOW);
+    wifiMulti.run();
+    delay(2000);
+  }
+  blinkGPIO(WIFI_LED,400); 
 
   //**** Connecting MQTT
-  display.print("F3");
+  display.print("HF");  // Host Failed
+  delay(200);
   pbBackendMqtt();
 
   //Setting  Time from NTP Server
-  display.print("F4");
+  display.print("tF"); // Time Failed
+  delay(200);
   Serial.printf("\nConnecting to TimeServer --> ");
   cfginfo.asset.ntpServer1 = "0.asia.pool.ntp.org";
   cfginfo.asset.ntpServer2 = "1.asia.pool.ntp.org";
@@ -301,7 +327,7 @@ void setup() {
 
 
   //******  Check stateflag 
-  display.print("F5");
+  display.print("SF"); // StateFlag
   cfgdata.begin("config",false);
   if(cfgdata.isKey("stateflag")){
     stateflag = cfgdata.getInt("stateflag",0);
@@ -326,7 +352,7 @@ void setup() {
         if(!mqflipup.connected()){
           fpBackendMqtt();
         }else{
-          mqflipup.publish(pbPubTopic.c_str(),jsonmsg.c_str());
+          mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
         }
       #endif
 
@@ -352,7 +378,7 @@ void setup() {
         if(!mqflipup.connected()){
           fpBackendMqtt();
         }else{
-          mqflipup.publish(pbPubTopic.c_str(),jsonmsg.c_str());
+          mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
         }
       #endif
 
@@ -362,7 +388,7 @@ void setup() {
       Serial.printf("stateflag after: %d\n",stateflag);
       cfgState=3;
     }else if(stateflag == 5){ // Last Service not finish but may be power off.
-      display.print("PE"); //Power Outage Event
+      display.print("PF"); //Power Failed
       cfgState = stateflag;
       dispflag = 1;
 
@@ -405,9 +431,11 @@ void setup() {
   }
   cfgdata.end();
 
-  display.print("F6");
-  Serial.printf("\n****************************************\n");
-  Serial.printf("\nSystem Ready for service.\n");    
+  display.print("Fn"); // Finish 
+  Serial.printf("\n\n");
+  Serial.printf("******************************************************\n");
+  Serial.printf("*      System Ready for service. Firmware:%s      *\n",cfginfo.asset.firmware.c_str());  
+  Serial.printf("******************************************************\n");  
   delay(500);   
 
 
@@ -527,7 +555,7 @@ void loop() {
             }else{ // LOW = Door Open
               if(pauseflag == false){
                 Serial.printf("Timer pause, remain is : %d\n",timeRemain);
-                display.print("PU");
+                display.print("PU"); //Pause
                 serviceTime.pause(serviceTimeID);
                 timeLeft.pause(timeLeftID);
                 pauseflag = true;
@@ -634,7 +662,7 @@ void prog1start(){
 
   payboard backend;
   String response;
-  int rescode;
+  int rescode = 0;
   HDV70E1 dryer;
 
   //digitalWrite(ENCOIN,LOW); // Disable Coin Module
@@ -800,7 +828,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["desc"]="config saved";
     
     cfgState = 3;
-    display.print("C3");
+    display.scrollingText("A-CF",1);
 
   }else if(action == "paid"){
     //Paid and then start service.
@@ -817,12 +845,10 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       waitFlag = 2;
     }
 
-
-    //String trans = doc["orderNo"].as<String>();
     cfginfo.asset.orderid = doc["orderNo"].as<String>();
-    // cfgdata.begin("config",false);
-    // cfgdata.putString("orderid",cfginfo.asset.orderid);
-    // cfgdata.end();
+    cfgdata.begin("config",false);
+    cfgdata.putString("orderid",cfginfo.asset.orderid);
+    cfgdata.end();
   
     Serial.printf(" [PAID]->Customer paid for: %d\n",coinValue);
     Serial.printf(" [PAID]->Orderid: %s\n",cfginfo.asset.orderid.c_str());
@@ -832,8 +858,9 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["uuid"]=cfginfo.payboard.uuid;  
     doc["state"]="accepted";
     doc["desc"]="accepted orderid: " + cfginfo.asset.orderid;
-
-    //coinValue = paidprice;
+    
+    display.scrollingText("A-PA",1);
+    delay(200);
   }else if(action == "countcoin"){
     /*  Not use Jul64
     Serial.printf("Response for action: coincount.\n");
@@ -903,7 +930,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       if(!mqflipup.connected()){
         fpBackendMqtt();
       }
-      mqflipup.publish(pbPubTopic.c_str(),jsonmsg.c_str());
+      mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
     #endif
 
 
@@ -913,7 +940,6 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
 
   }else if(action == "ota"){
     WiFiClientSecure clientForOta;
-    int updatedFlag = 0;
 
     esp32OTA._host="www.flipup.net"; //e.g. example.com
     esp32OTA._descriptionOfFirmwareURL="/firmware/HDV70E1/firmware.json"; //e.g. /my-fw-versions/firmware.json
@@ -923,62 +949,64 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
   
     bool shouldExecuteFirmwareUpdate=esp32OTA.execHTTPSCheck();
     if(shouldExecuteFirmwareUpdate){
-      updatedFlag = esp32OTA.executeOTA();
-      if(updatedFlag == 1){
-        cfginfo.asset.firmware = esp32OTA._firwmareVersion.c_str();    
+      cfginfo.asset.firmware = esp32OTA._firwmareVersion.c_str();    
 
-        //set stateflag = 2 flag
-        cfgdata.begin("config",false);
-        cfgdata.putInt("stateflag",2);
-        cfgdata.putString("firmware",cfginfo.asset.firmware);
-        cfgdata.end();
+      //set stateflag = 2 flag
+      cfgdata.begin("config",false);
+      cfgdata.putInt("stateflag",2);
+      cfgdata.putString("firmware",cfginfo.asset.firmware);
+      cfgdata.end();
 
-        doc.clear();
-        doc["response"] = "ota";
-        doc["merchantid"]=cfginfo.payboard.merchantid;
-        doc["uuid"]=cfginfo.payboard.uuid;
-        doc["firmware"] = cfginfo.asset.firmware;
-        doc["state"] = "accepted";
-        doc["disc"] = "Firmware upgrading then rebooting in few second."; 
+      doc.clear();
+      doc["response"] = "ota";
+      doc["merchantid"]=cfginfo.payboard.merchantid;
+      doc["uuid"]=cfginfo.payboard.uuid;
+      doc["firmware"] = cfginfo.asset.firmware;
+      doc["state"] = "accepted";
+      doc["disc"] = "Firmware upgrading then rebooting in few second."; 
 
-        serializeJson(doc,jsonmsg);
-        Serial.print("Jsonmsg: ");Serial.println(jsonmsg);
-        Serial.print("Ver: "); Serial.println(cfginfo.asset.firmware.c_str());
-        Serial.println("Firmware updating, It's will take few second");
-      }else{
-        doc["merchanttid"] = cfginfo.payboard.merchantid;
-        doc["uuid"] = cfginfo.payboard.uuid;
-        doc["response"] = "ota";
-        doc["state"] = "FAILED";
-        doc["desc"] = "Firmware update failed, Error code:" + String(updatedFlag); 
+      serializeJson(doc,jsonmsg);
+      Serial.print("Jsonmsg: ");Serial.println(jsonmsg);
+      Serial.print("Ver: "); Serial.println(cfginfo.asset.firmware.c_str());
+      Serial.println("Firmware updating, It's will take few second");
+
+      if(!mqclient.connected()){
+        pbBackendMqtt();
       }
+      mqclient.publish(pbPubTopic.c_str(),jsonmsg.c_str());
+
+      #ifdef FLIPUPMQTT
+        if(!mqflipup.connected()){
+          fpBackendMqtt();
+        }
+        mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
+      #endif
+
+      display.scrollingText("A-OtA",1);
+      esp32OTA.executeOTA_REBOOT();
+
     }else{
       doc["merchanttid"] = cfginfo.payboard.merchantid;
       doc["uuid"] = cfginfo.payboard.uuid;
       doc["response"] = "ota";
       doc["state"] = "FAILED";
       doc["desc"] = "Firmware update failed, version may be the same."; 
-    }
 
-    serializeJson(doc,jsonmsg);
-    Serial.print("Jsonmsg: ");Serial.println(jsonmsg);
-    if(!mqclient.connected()){
-      pbBackendMqtt();
-    }
-    mqclient.publish(pbPubTopic.c_str(),jsonmsg.c_str());
-
-    #ifdef FLIPUPMQTT
-      if(!mqflipup.connected()){
-        fpBackendMqtt();
+      serializeJson(doc,jsonmsg);
+      Serial.print("Jsonmsg: ");Serial.println(jsonmsg);
+      if(!mqclient.connected()){
+        pbBackendMqtt();
       }
-      mqflipup.publish(pbPubTopic.c_str(),jsonmsg.c_str());
-    #endif
+      mqclient.publish(pbPubTopic.c_str(),jsonmsg.c_str());
 
-    delay(1000);
-    if(updatedFlag == 1){
-      ESP.restart();  
+      #ifdef FLIPUPMQTT
+        if(!mqflipup.connected()){
+          fpBackendMqtt();
+        }
+        mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
+      #endif
     }
-  
+    delay(1000);
   }else if(action == "setwifi"){
     // {"action":"setwifi","index":"1","ssid":"Home173-AIS","key":"1100110011","reconnect":"1"}
 
@@ -1029,8 +1057,6 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
 
   }else if(action == "assettype"){  
     // {"action":"assettype","assettype":"0"}
-
-    
     cfginfo.asset.assettype = doc["assettype"].as<int>();
     cfgdata.begin("config",false);
     cfgdata.putInt("assettype",0);
@@ -1118,7 +1144,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       #endif
     }
 
-    
+    display.scrollingText("A-Pb",1);
   }else if(action == "backend"){
 
   }else if(action == "stateflag"){ //stateflag is flag for mark action before reboot  ex 1 is for reboot action, 2 for ota action
@@ -1143,7 +1169,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["uuid"]=cfginfo.payboard.uuid;
     doc["state"]="created";
     doc["desc"]="Manual create job.";
-
+    display.scrollingText("A-JC",1);
   }else if(action == "nvsdelete"){
     String msg;
 
@@ -1159,6 +1185,8 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["uuid"]=cfginfo.payboard.uuid;
     doc["state"]="deleted";
     doc["desc"]=msg;    
+
+    display.scrollingText("A-nd",1);
   }
 
   serializeJson(doc,jsonmsg);
@@ -1175,7 +1203,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     if(!mqflipup.connected()){
       fpBackendMqtt();
     }
-    mqflipup.publish(pbPubTopic.c_str(),jsonmsg.c_str());
+    mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
   #endif
   delay(500);
 }
@@ -1185,6 +1213,23 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
   void fpCallback(char* topic, byte* payload, unsigned int length){
     pbCallback(topic,payload,length);
   }
+
+void fpBackendMqtt(){
+    if(!mqflipup.connected()){
+      mqflipup.setServer(cfginfo.backend.mqtthost.c_str(),cfginfo.backend.mqttport);
+      mqflipup.setCallback(fpCallback);
+
+    
+      Serial.printf("Backend-2 Mqtt connecting ...");
+      while(!mqflipup.connect(cfginfo.deviceid.c_str(),cfginfo.backend.mqttuser.c_str(), cfginfo.backend.mqttpass.c_str())){
+        Serial.printf(".");
+        delay(500);
+      }
+      Serial.printf("connected\n");
+      mqflipup.subscribe(fpSubTopic.c_str());
+      Serial.printf("   Subscribe Topic: %s\n",fpSubTopic.c_str());
+    }        
+}
 #endif
 
 
@@ -1196,7 +1241,7 @@ void pbBackendMqtt(){
       
       pbSubTopic = "payboard/" + String(cfginfo.payboard.merchantid) + "/" + String(cfginfo.payboard.uuid);
     
-      Serial.printf("Backend Mqtt connecting ...");
+      Serial.printf("Backend-1 Mqtt connecting ...");
       while(!mqclient.connect(cfginfo.deviceid.c_str(),cfginfo.payboard.mqttuser.c_str(), cfginfo.payboard.mqttpass.c_str())){
         Serial.printf(".");
         delay(500);
@@ -1209,25 +1254,7 @@ void pbBackendMqtt(){
 
 
 
-#ifdef FLIPUPMQTT
-void fpBackendMqtt(){
-    if(!mqflipup.connected()){
-      mqflipup.setServer(cfginfo.backend.mqtthost.c_str(),cfginfo.backend.mqttport);
-      mqflipup.setCallback(fpCallback);
 
-      pbSubTopic = "payboard/" + String(cfginfo.payboard.merchantid) + "/" + String(cfginfo.payboard.uuid);
-    
-      Serial.printf("Backend Mqtt connecting ...");
-      while(!mqflipup.connect(cfginfo.deviceid.c_str(),cfginfo.backend.mqttuser.c_str(), cfginfo.backend.mqttpass.c_str())){
-        Serial.printf(".");
-        delay(500);
-      }
-      Serial.printf("connected\n");
-      mqflipup.subscribe(pbSubTopic.c_str());
-      Serial.printf("   Subscribe Topic: %s\n",pbSubTopic.c_str());
-    }        
-}
-#endif
 
 
 
@@ -1256,12 +1283,10 @@ void serviceEnd(){
   cfgState = 3;
   waitFlag = 0;
   dispflag = 0;
+
   firstExtPaid = 0;
   extpaid = 0;
   extraPay = 0;
-  // extTime1 = 0;
-  // extTime2 = 0;
-  
 
   cfgdata.begin("config",false);
   cfgdata.putInt("stateflag",0);
