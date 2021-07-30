@@ -139,6 +139,8 @@ void getNVCFG(Preferences nvcfg, Config &cfg){
             cfg.product[0].sku = nvcfg.getString("sku1");
             cfg.product[0].price = nvcfg.getFloat("price1");
             cfg.product[0].stime = nvcfg.getInt("stime1");
+        }else{
+
         }
 
         if(nvcfg.isKey("sku2")){
@@ -275,31 +277,31 @@ void initCFG(Config &cfg){
     cfg.backend.mqttpass="password";
     cfg.backend.mqttport = 1883;    
 
-    if(cfg.asset.assettype == 0){//WASHER
-      cfg.product[0].sku = "P1";
-      cfg.product[0].price = 30;
-      cfg.product[0].stime = 25;
+    // if(cfg.asset.assettype == 0){//WASHER
+    //   cfg.product[0].sku = "P1";
+    //   cfg.product[0].price = 30;
+    //   cfg.product[0].stime = 25;
 
-      cfg.product[1].sku = "P2";
-      cfg.product[1].price = 40;
-      cfg.product[1].stime = 35;
+    //   cfg.product[1].sku = "P2";
+    //   cfg.product[1].price = 40;
+    //   cfg.product[1].stime = 35;
 
-      cfg.product[2].sku = "P3";
-      cfg.product[2].price = 50;
-      cfg.product[2].stime = 40;   
-    }else{
+    //   cfg.product[2].sku = "P3";
+    //   cfg.product[2].price = 50;
+    //   cfg.product[2].stime = 40;   
+    // }else{
       cfg.product[0].sku = "P1";
-      cfg.product[0].price = 0;
+      cfg.product[0].price = 40;
       cfg.product[0].stime = 60;
 
       cfg.product[1].sku = "P2";
-      cfg.product[1].price = 0;
+      cfg.product[1].price = 50;
       cfg.product[1].stime = 75;
 
-      cfg.product[1].sku = "P3";
-      cfg.product[1].price = 0;
-      cfg.product[1].stime = 90;
-    }
+      cfg.product[2].sku = "P3";
+      cfg.product[2].price = 60;
+      cfg.product[2].stime = 90;
+    // }
     
 
     // for(int i=0;i<3;i++){

@@ -83,6 +83,7 @@ class HDV70E1 {
         bool isMachineON(int pin,int &err);// 1 = ON, 0 = Off
 
         void showPanel(void);
+        void activePanel(int pwrPin,int machinePwr, int panelPIN);
 };
 
 void boardTest(void);

@@ -209,6 +209,8 @@ void setup() {
   //initCFG(cfginfo); 
   Serial.printf("Load default configuration.\n");
   initCFG(cfginfo); 
+  // Serial.printf("first showCFG\n");
+  // showCFG(cfginfo);
   
   cfginfo.deviceid = getdeviceid();
   cfginfo.asset.assetid = cfginfo.deviceid;
@@ -232,6 +234,8 @@ void setup() {
     getnvProduct(cfgdata,cfginfo);
   }
   cfgdata.end();
+
+
   
 
   //int sz = sizeof(cfginfo.product)/sizeof(cfginfo.product[0]);
@@ -440,8 +444,14 @@ void setup() {
 
 
 
+HDV70E1 dryer1;
+dryer1.powerCtrl(POWER_RLY,MACHINEDC,dryer1.TURNON);
+dryer1.showPanel();
+digitalWrite(ENPANEL,LOW);
+delay(500);
+digitalWrite(ENPANEL,HIGH);
 
-
+  
   
   //selftest();
 }
@@ -453,6 +463,8 @@ void setup() {
 //----------------------------------- Start LOOP Function Here -----------------------------------
 void loop() {
 
+  Serial.println(digitalRead(ENPANEL));
+  delay(500);
   keyPress=display.comReadByte();
   switch(keyPress){
     case 244:

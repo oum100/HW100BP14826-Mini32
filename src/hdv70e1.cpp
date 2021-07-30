@@ -14,6 +14,11 @@ void HDV70E1::showPanel(){
         Serial2.write(ctrlbytes, sizeof(ctrlbytes));
         delay(50);
     }
+    activePanel(POWER_RLY,MACHINEDC,ENPANEL);
+}
+
+void HDV70E1::activePanel(int pwrPin,int machinePwr, int panelPIN){
+    digitalWrite(panelPIN,HIGH);
 }
 
 

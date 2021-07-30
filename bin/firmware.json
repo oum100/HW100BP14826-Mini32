@@ -1,0 +1,7 @@
+{
+    "type": "HDV70E1",
+    "version": "1.0.1",
+    "host": "www.flipup.net",
+    "port": 443,
+    "bin": "/firmware/HDV70E1/HDV70ED-1.0.1.bin"
+}
