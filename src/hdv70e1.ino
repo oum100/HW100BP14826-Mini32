@@ -29,11 +29,15 @@ int extraPay = 0;
 int extpaid = 0;
 
 int price[3];
-int stime[3]={60,75,90};
+int stime[3]={45,60,75};  //Production  change from 60,75,90
+
 
 int keyPress=0;
 int errorCode = 0;
 String errorDesc = "";
+String disperr="";
+String disptxt="";
+bool disponce = 0;
 
 //Timer 
 Timer serviceTime, waitTime, timeLeft;
@@ -41,7 +45,6 @@ int8_t serviceTimeID,waitTimeID,timeLeftID;
 
 
 time_t tnow;
-
 
 WiFiMulti wifiMulti;
 
@@ -73,10 +76,19 @@ String fpSubTopic PROGMEM = "/flipup/";
 //Remainding time 
 
 
-secureEsp32FOTA esp32OTA("HDV70E1", "1.0.0");
+//secureEsp32FOTA esp32OTA("HDV70E1", "1.0.2");  //Move to action ota 5 Oct 21
 
+AsyncWebServer server(80);
 
-
+//********************************* Webserial Callback function **********************************
+void recvMsg(uint8_t *data, size_t len){
+  WebSerial.println("Received Data...");
+  String msg = "";
+  for(int i=0; i < len; i++){
+    msg += char(data[i]);
+  }
+  WebSerial.println(msg);
+}
 
 //********************************* Interrupt Function **********************************
 gpio_config_t io_config;
@@ -164,11 +176,15 @@ void setup() {
 
   Serial.begin(115200);
   Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
+  
+  
+
   Serial.printf("Start setup device ...\n");
 
   display.begin();
   display.setBacklight(30);
-  display.print("St"); //Setup
+  display.print("SS"); //Setup
+
   delay(200);
   
 
@@ -182,8 +198,10 @@ void setup() {
 
   //******* WiFi Setting
   display.print("Cn"); //Config Network
+
   delay(200);
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(WIFI_STA);
+  
   wifiMulti.addAP("Home173-AIS","1100110011");
   wifiMulti.addAP("myWiFi","1100110011");
   //wifiMulti.addAP("Home259_2G","1100110011");
@@ -195,6 +213,7 @@ void setup() {
   Serial.printf("Connection WiFi...\n");
   while (WiFi.status() != WL_CONNECTED) {  
      display.print("nF");
+
      //WiFi.begin("Home173-AIS","1100110011");
      wifiMulti.run();
      Serial.print(".");
@@ -202,12 +221,17 @@ void setup() {
   }
   blinkGPIO(WIFI_LED,400);
   Serial.printf("WiFi Connected...");
+  WebSerial.begin(&server);
+  WebSerial.msgCallback(recvMsg);
+  server.begin();
+
   WiFiinfo();
 
   display.print("LC"); // Load Config
+  WebSerial.println("[LC]->Loading Configuration");
   delay(200);
   //initCFG(cfginfo); 
-  Serial.printf("Load default configuration.\n");
+  Serial.printf("Load initial configuration.\n");
   initCFG(cfginfo); 
   // Serial.printf("first showCFG\n");
   // showCFG(cfginfo);
@@ -227,16 +251,18 @@ void setup() {
   cfgdata.begin("config",false);
   if(cfgdata.isKey("merchantid")){
     cfginfo.payboard.merchantid = cfgdata.getString("merchantid");
+    Serial.printf("Use NV-RAM merchantid: %s\n",cfginfo.payboard.merchantid.c_str());
   }else{
     cfginfo.payboard.merchantid = "1000000104";  //this is default mmerchant id
+    Serial.printf("Use temporary mechantid: %s\n",cfginfo.payboard.merchantid.c_str());
   }
   if(cfgdata.isKey("sku1")){
-    getnvProduct(cfgdata,cfginfo);
+    getnvProduct(cfgdata,cfginfo); //copy cfgdata(NV) to cfginfo
+    Serial.printf("Use NV-RAM product information\n");
+  }else{
+    Serial.printf("Use temporary Serive time\n");
   }
   cfgdata.end();
-
-
-  
 
   //int sz = sizeof(cfginfo.product)/sizeof(cfginfo.product[0]);
   
@@ -244,7 +270,9 @@ void setup() {
   Serial.printf(" Number Product %d\n",sz);
   for(int i=0;i<sz;i++){
     price[i] = int(cfginfo.product[i].price);
-    //stime[i] = cfginfo.product[i].stime;
+    stime[i] = cfginfo.product[i].stime;
+    // Serial.printf("Price[%d]:%d\n",i,price[i]);
+    // Serial.printf("Stime[%d]:%d\n",i,stime[i]);
   }
 
   //*** Set price per coin
@@ -262,6 +290,7 @@ void setup() {
   }else{//Device not register
     Serial.printf("Device not register.\n");
     display.print("dF"); // Device Fail
+    WebSerial.println("[dF]->Device not register");
     delay(200);
     Serial.printf("  Automatic register to backend...Please wait.\n");
     Serial.printf("  MAC Address: %s\n",cfginfo.asset.mac.c_str());
@@ -297,6 +326,7 @@ void setup() {
     //Keep WiFi connection
   while(!WiFi.isConnected()){
     display.print("nF");
+    WebSerial.println("[nF]->WiFi Connected");
     digitalWrite(WIFI_LED,LOW);
     wifiMulti.run();
     delay(2000);
@@ -304,12 +334,14 @@ void setup() {
   blinkGPIO(WIFI_LED,400); 
 
   //**** Connecting MQTT
-  display.print("HF");  // Host Failed
+  display.print("HE");  // Host Failed
+  WebSerial.println("[HE]->MQTT server connection error.");
   delay(200);
   pbBackendMqtt();
 
   //Setting  Time from NTP Server
-  display.print("tF"); // Time Failed
+  display.print("tE"); // Time Failed
+  WebSerial.println("[tE]->Time server connection error");
   delay(200);
   Serial.printf("\nConnecting to TimeServer --> ");
   cfginfo.asset.ntpServer1 = "0.asia.pool.ntp.org";
@@ -332,6 +364,7 @@ void setup() {
 
   //******  Check stateflag 
   display.print("SF"); // StateFlag
+  WebSerial.println("[SF]->StateFlag checking");
   cfgdata.begin("config",false);
   if(cfgdata.isKey("stateflag")){
     stateflag = cfgdata.getInt("stateflag",0);
@@ -343,7 +376,8 @@ void setup() {
       doc["response"]="reboot";
       doc["merchantid"]=cfginfo.payboard.merchantid;
       doc["uuid"]=cfginfo.payboard.uuid;
-      doc["state"]="Rebooted";
+      doc["state"]="reboot_done";
+      doc["desc"]="Reboot after action:Reboot complete";
       serializeJson(doc,jsonmsg);  
 
       if(!mqclient.connected()){
@@ -365,10 +399,12 @@ void setup() {
       Serial.printf("stateflag after: %d\n",stateflag);
       cfgState = 3;
     }else if(stateflag ==2){ // After Action OTA
+      display.scrollingText((cfginfo.asset.firmware).c_str(),2);
       doc["response"]="ota";
       doc["merchantid"]=cfginfo.payboard.merchantid;
       doc["uuid"]=cfginfo.payboard.uuid;
-      doc["state"]="Updated";
+      doc["state"]="ota_done";
+      doc["desc"]="Reboot after action:OTA complete";
       doc["firmware"]=cfginfo.asset.firmware;
       serializeJson(doc,jsonmsg);  
 
@@ -386,13 +422,42 @@ void setup() {
         }
       #endif
 
+      cfgdata.putInt("stateflag",0);
+      stateflag = 0;
+      Serial.printf("stateflag after: %d\n",stateflag);
+      cfgState=3;
+
+    }else if(stateflag == 3){ //After nvsdelete
+      display.scrollingText("n-dEL",2);
+      doc["response"]="nvsdelete";
+      doc["merchantid"]=cfginfo.payboard.merchantid;
+      doc["uuid"]=cfginfo.payboard.uuid;
+      doc["state"]="nvs_done";
+      doc["desc"]="Reboot after action:nvs_delete complete";
+      doc["firmware"]=cfginfo.asset.firmware;
+      serializeJson(doc,jsonmsg);  
+
+      if(!mqclient.connected()){
+        pbBackendMqtt();
+      }else{
+        mqclient.publish(pbPubTopic.c_str(),jsonmsg.c_str());
+      }
+
+      #ifdef FLIPUPMQTT
+        if(!mqflipup.connected()){
+          fpBackendMqtt();
+        }else{
+          mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
+        }
+      #endif
 
       cfgdata.putInt("stateflag",0);
       stateflag = 0;
       Serial.printf("stateflag after: %d\n",stateflag);
       cfgState=3;
     }else if(stateflag == 5){ // Last Service not finish but may be power off.
-      display.print("PF"); //Power Failed
+      display.print("F1"); //Power Failed
+      WebSerial.println("[F1]->Found job not finish. possible power failure.");
       cfgState = stateflag;
       dispflag = 1;
 
@@ -401,12 +466,23 @@ void setup() {
         HDV70E1 dryer;
 
         Serial.printf("Resume job for orderID: %s for [%d] minutes remain.\n",cfginfo.asset.orderid.c_str(),timeRemain);
-
-        if(!dryer.isMachineON(MACHINEDC)){
+        
+        if(dryer.isMachineON(MACHINEDC)){ // Found Machine On
+          Serial.printf("Found Machine ON. Then Continue counter down time for previous Job\n");
+          dryer.powerCtrl(POWER_RLY, MACHINEDC,dryer.TURNOFF);
+          delay(5500);
+          dryer.powerCtrl(POWER_RLY, MACHINEDC,dryer.TURNON);
+          dryer.runProgram(POWER_RLY,MACHINEDC,DSTATE,dryer.MIN120,display,errorCode);
+          //digitalWrite(ENPANEL,HIGH);
+        }else{ //Machine Off
+          Serial.print("Found job but Machine not on. Then turn machine on\n");
           digitalWrite(ENPANEL,LOW);
           dryer.runProgram(POWER_RLY,MACHINEDC,DSTATE,dryer.MIN120,display,errorCode);
+          //digitalWrite(ENPANEL,HIGH);
+          // digitalWrite(ENPANEL,LOW);
+          // dryer.runProgram(POWER_RLY,MACHINEDC,DSTATE,dryer.MIN120,display,errorCode);
         }
-        
+
         serviceTimeID = serviceTime.after(60*1000*timeRemain,serviceEnd);
         timeLeftID = timeLeft.every(60*1000*1,serviceLeft);
       }else{
@@ -418,6 +494,7 @@ void setup() {
 
 
     }else{
+
       cfgState = 3;
       if(timeRemain != 0){
         //cfgdata.begin("config",false);
@@ -436,6 +513,7 @@ void setup() {
   cfgdata.end();
 
   display.print("Fn"); // Finish 
+  WebSerial.println("[Fn]->Setup finish");
   Serial.printf("\n\n");
   Serial.printf("******************************************************\n");
   Serial.printf("*      System Ready for service. Firmware:%s      *\n",cfginfo.asset.firmware.c_str());  
@@ -444,12 +522,12 @@ void setup() {
 
 
 
-HDV70E1 dryer1;
-dryer1.powerCtrl(POWER_RLY,MACHINEDC,dryer1.TURNON);
-dryer1.showPanel();
-digitalWrite(ENPANEL,LOW);
-delay(500);
-digitalWrite(ENPANEL,HIGH);
+// HDV70E1 dryer1;
+// dryer1.powerCtrl(POWER_RLY,MACHINEDC,dryer1.TURNON);
+// dryer1.showPanel();
+// digitalWrite(ENPANEL,LOW);
+// delay(500);
+// digitalWrite(ENPANEL,HIGH);
 
   
   
@@ -463,8 +541,8 @@ digitalWrite(ENPANEL,HIGH);
 //----------------------------------- Start LOOP Function Here -----------------------------------
 void loop() {
 
-  Serial.println(digitalRead(ENPANEL));
-  delay(500);
+  //Serial.println(digitalRead(ENPANEL));
+  //delay(500);
   keyPress=display.comReadByte();
   switch(keyPress){
     case 244:
@@ -521,17 +599,17 @@ void loop() {
             waitFlag++;
             //extraPay = 1;
             timeRemain = stime[0];
-            waitTimeID = waitTime.after(60*1000*0.166,prog1start);
-            //prog1start();
+            waitTimeID = waitTime.after(60*1000*0.166,progstart);
+            //progstart();
           }else if( (coinValue == price[1]) &&  (waitFlag == 1)   ) {  // For program 50 Bath 75Mins
-            waitFlag++;
+            waitFlag++;   //Waitflag now = 2
             //extraPay=2;
             waitTime.stop(waitTimeID);
 
             timeRemain = stime[1];
             //timeRemain = stime[0]+ extTimePerCoin;
-            waitTimeID = waitTime.after(60*1000*0.166,prog1start);
-            //prog1start();
+            waitTimeID = waitTime.after(60*1000*0.166,progstart);
+            //progstart();
             Serial.printf("Pay more 1 coinValue: %d\n",coinValue);
             Serial.printf("Check TimeRemain-1: %d\n",timeRemain);
           }else if( (coinValue == price[2]) && (waitFlag == 2) ) {  // For program 60 Bath 90Mins
@@ -542,7 +620,7 @@ void loop() {
 
             timeRemain = stime[2];
             //timeRemain = stime[0]+ (2* extTimePerCoin);
-            prog1start();
+            progstart();
             Serial.printf("Pay more 2 coinValue: %d\n",coinValue);
             Serial.printf("Check TimeRemain-2: %d\n",timeRemain);
           }
@@ -561,15 +639,17 @@ void loop() {
                 dryer.ctrlButton(dryer.START);
                 Serial.printf("Timer resume for %d mins\n",timeRemain);
                 serviceTime.resume(serviceTimeID);
-                timeLeft.resume(timeLeftID);
+                timeLeftID = timeLeft.every(60*1000*1,serviceLeft);
                 pauseflag = false;
+                //digitalWrite(ENPANEL,HIGH);
               }
             }else{ // LOW = Door Open
               if(pauseflag == false){
                 Serial.printf("Timer pause, remain is : %d\n",timeRemain);
                 display.print("PU"); //Pause
+                WebSerial.println("[PU]->Job pause by user open door");
                 serviceTime.pause(serviceTimeID);
-                timeLeft.pause(timeLeftID);
+                timeLeft.stop(timeLeftID);
                 pauseflag = true;
               }
             }
@@ -581,43 +661,52 @@ void loop() {
 
           //Serial.printf("Extrapay now: %d\n",extraPay);
           if(paymentby == 1){ // by Coin
-            if( (coinValue > price[0]+extpaid) && (waitFlag ==1) ){
+            if( (coinValue > price[0]+extpaid) && (waitFlag ==1) ){  //coinValue change from price[0] to price[1]
+              //Mark to new state
               waitFlag ++;
               extraPay = 2;
-              //waitTime.stop(waitTimeID);
+
+              //Stop previous timer
+              waitTime.stop(waitTimeID);
               timeLeft.stop(timeLeftID);
               serviceTime.stop(serviceTimeID);
 
-              extpaid = coinValue - (price[0]);        
+              extpaid = coinValue - (price[0]);       
+              Serial.printf("1st timeremain now: %d\n",timeRemain); 
               timeRemain = timeRemain + extTimePerCoin;
 
               Serial.printf("1st extraPay is %d\n",extpaid);
               Serial.printf("1st set new time: %d\n",timeRemain);
-              waitTimeID = waitTime.after(60*1000*0.166,prog1start);
-              //waitTimeID = waitTime.after(60*1000*0.166,prog2start);
+              waitTimeID = waitTime.after(60*1000*0.166,progstart);
               
-            }else if( (coinValue > price[0]+extpaid) && (waitFlag ==2)) {
-      
+            }else if( (coinValue > price[1]) && (waitFlag ==2)) { //change price[1] to price[2]
+              //Disable coinModule
               digitalWrite(ENCOIN,LOW);
+
+              //Mark to new state
+              waitFlag++;
               extraPay = 3;
+
+              //Stop previous timer
               waitTime.stop(waitTimeID); 
               timeLeft.stop(timeLeftID);
               serviceTime.stop(serviceTimeID);
 
-              if(firstExtPaid){
-                extpaid = coinValue - (price[0]-extpaid);
+              
+              // if(firstExtPaid){
+              //   extpaid = coinValue - (price[1]-extpaid);
+              //   firstExtPaid = 0;
+              // }else{
+                extpaid = coinValue - price[1];
                 firstExtPaid = 0;
-              }else{
-                extpaid = coinValue - price[0];
-                firstExtPaid = 0;
-              }
+              //}
               
               timeRemain = timeRemain + extTimePerCoin;
               
               Serial.printf("2nd extraPay is %d\n",extpaid);
               Serial.printf("2nd set new time: %d\n",timeRemain);
               //prog3start();
-              prog1start();
+              progstart();
             }
           }
           //-------------- End Extrapay to exten time -----------------
@@ -625,13 +714,18 @@ void loop() {
 
           //----------------- Display operation --------------------
           display.setColonOn(0);
+          disptxt="";
+          if(!disperr.isEmpty()){
+            disptxt = disperr +"-";
+          }
+
           if(timeRemain <10){
-            String txt;
-            txt = "0"+String(timeRemain);
-            display.print(txt);
+            disptxt = disptxt+ "0"+String(timeRemain);
           }else{
-            display.print(timeRemain);
+            disptxt = disptxt+ String(timeRemain);
           } 
+
+          display.scrollingText(disptxt.c_str(),1);
           delay(1000);
           display.animation3(display,300,2);
           //----------------- END Display operation --------------------
@@ -639,6 +733,14 @@ void loop() {
           //display.scrollingText(String(timeRemain+"--").c_str(),1);
           break;
       case 6:
+          break;
+      case 10: //Ofline
+          display.scrollingText("--OFF--",1);
+          if(!disponce){
+            Serial.println("Asset is in OFFLINE mode");
+            WebSerial.println("Asset is in OFFLINE mode");
+            disponce = 1;
+          }
           break;
     }
 
@@ -670,7 +772,7 @@ void loop() {
 //----------------------------------- END Of Loop Function Here -----------------------------------
 
 
-void prog1start(){
+void progstart(){
 
   payboard backend;
   String response;
@@ -679,7 +781,9 @@ void prog1start(){
 
   //digitalWrite(ENCOIN,LOW); // Disable Coin Module
 
-  Serial.printf("Starting Prog1Start , Paymentby %d\n",paymentby);
+  Serial.printf("Starting progstart , Paymentby %d\n",paymentby);
+  WebSerial.print("[progstart]->Starting with payment by ");
+  WebSerial.println(paymentby);
 
   backend.merchantID=cfginfo.payboard.merchantid;
   backend.merchantKEY=cfginfo.payboard.merchantkey;
@@ -698,7 +802,7 @@ void prog1start(){
         if(extraPay == 2){ //1st extrapay
           firstExtPaid = 1;
         }
-        Serial.printf("[Prog1Start]->Update extrapay to payboard for %d bath\n",extpaid);
+        Serial.printf("[progstart]->Update extrapay to payboard for %d bath\n",extpaid);
         rescode = backend.coinCounter(cfginfo.payboard.uuid.c_str(),extpaid,response);
       }
 
@@ -731,32 +835,41 @@ void prog1start(){
       break;  // Free Admin activate it.
   }
   
+
+
   // Starting Machine
   digitalWrite(ENPANEL,LOW);
+  disperr="";
+  disptxt="";
+  cfgState = 5;
+  cfgdata.begin("config",false);
+  cfgdata.putInt("stateflag",cfgState);
+  cfgdata.putInt("timeremain",timeRemain);
+  cfgdata.end();   
   if(dryer.isMachineON(MACHINEDC)){
     Serial.printf("Extend time for to started job\n");
+    display.print("Et");
+    WebSerial.println("[Et]->User insert more coin, Extended time for current job");
+    delay(3000);
     serviceTimeID=serviceTime.after((60*1000*timeRemain),serviceEnd);
     timeLeftID = timeLeft.every(60*1000*1,serviceLeft);
   }else{
     Serial.printf("On service of Program-1 for %d minutes\n",timeRemain);
+    WebSerial.println("[progstart]->Job accepted, Power on machine.");
+    delay(3000);
     int dryercode = dryer.runProgram(POWER_RLY,MACHINEDC,DSTATE,dryer.MIN120,display,errorCode);
-    if(dryercode == 1){
+    if(dryercode){ //On service successfuly
       serviceTimeID=serviceTime.after((60*1000*timeRemain),serviceEnd);
       timeLeftID = timeLeft.every(60*1000*1,serviceLeft);
+      WebSerial.println("[progstart]->Power on machine successful");
     }else{
       //Notice Error to backend
       //Power On machine, but machine not on.
-      Serial.print("[Prog1Start]->Power on machine. But machine not response command. (not turn on)\n");
-    }
-
-    cfgState = 5;
-    cfgdata.begin("config",false);
-    cfgdata.putInt("stateflag",cfgState);
-    cfgdata.putInt("timeremain",timeRemain);
-    cfgdata.end();    
-  }
-
-  
+      Serial.print("[progstart]->Power on machine. But machine not response command. (not turn on)\n");
+      disperr="PE";
+      WebSerial.println("[progstart]->Power on machine, But machine not response. ");
+    } 
+  }  
 }
 
 
@@ -912,8 +1025,12 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       case 5: // Available (waiting for job)
           doc["state"] = "Busy"; // On Service
           break;
+      case 10:
+          doc["state"] = "Offline";
+          break;
     }
     //doc["state"]=cfgState;
+    doc["firmware"]=cfginfo.asset.firmware;
     doc["timeRemain"] = timeRemain;
 
   }else if( (action == "reset") || (action=="reboot") || (action=="restart")){
@@ -944,19 +1061,25 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       }
       mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
     #endif
-
-
     delay(500);    
     
     ESP.restart();
 
   }else if(action == "ota"){
+    secureEsp32FOTA esp32OTA("HDV70E1", cfginfo.asset.firmware.c_str());
     WiFiClientSecure clientForOta;
+    digitalWrite(ENCOIN,LOW); // ENCoin off
+    //esp32OTA._host ="enigma.openlandscape.cloud";
+    //esp32OTA._descriptionOfFirmwareURL="/swift/v1/AUTH_574cacf4b45348f4be8d6a36fce1b6b3/firmware/HDV70E1/firmware.json";
+    
 
     esp32OTA._host="www.flipup.net"; //e.g. example.com
     esp32OTA._descriptionOfFirmwareURL="/firmware/HDV70E1/firmware.json"; //e.g. /my-fw-versions/firmware.json
-    //esp32OTA._certificate=test_root_ca;
+    
+    //esp32OTA._certificate=root_ca;   //uncomment if use https with secure
     esp32OTA.clientForOta=clientForOta;
+    Serial.print("Current Version:");
+    Serial.println(cfginfo.asset.firmware);
     esp32OTA._firwmareVersion = cfginfo.asset.firmware;
   
     bool shouldExecuteFirmwareUpdate=esp32OTA.execHTTPSCheck();
@@ -994,7 +1117,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
         mqflipup.publish(fpPubTopic.c_str(),jsonmsg.c_str());
       #endif
 
-      display.scrollingText("A-OtA",1);
+      display.scrollingText("UF",1);
       esp32OTA.executeOTA_REBOOT();
 
     }else{
@@ -1049,7 +1172,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
       doc["state"]="Reconnected";
       doc["desc"]="setWiFi completed  and reconnected";
     }else{
-      doc["state"]="Changed";
+      doc["state"]="WiFi_Changed";
       doc["desc"]="setWiFi conpleted but will effect next boot.";
     }
   
@@ -1061,7 +1184,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["response"] = "coinmodule";
     doc["merchantid"]=cfginfo.payboard.merchantid;
     doc["uuid"]=cfginfo.payboard.uuid;
-    doc["state"]="changed";
+    doc["state"]="Coin_changed";
 
     (cfginfo.asset.coinModule == MULTI)?doc["desc"]="Change coinModule to: MULTI":doc["desc"]="Change coinModule to: SINGLE";
 
@@ -1078,7 +1201,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["response"] = "assettype";
     doc["merchantid"]=cfginfo.payboard.merchantid;
     doc["uuid"]=cfginfo.payboard.uuid;
-    doc["state"]="changed"; 
+    doc["state"]="Asset_changed"; 
     if(cfginfo.asset.assettype){// 1 = Dryer
       doc["desc"]="Set assetType to DRYER";
     }else{// 0 = Washer
@@ -1105,7 +1228,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
         cfgdata.putString("apikey",cfginfo.payboard.apikey);
       
         cfginfo.payboard.mqtthost = doc["mqtthost"].as<String>();
-        cfginfo.payboard.mqttport = doc["mqttportt"].as<int>();
+        cfginfo.payboard.mqttport = doc["mqttport"].as<int>();
         cfginfo.payboard.mqttuser = doc["mqttuser"].as<String>();
         cfginfo.payboard.mqttpass = doc["mqttpass"].as<String>();
         cfgdata.putString("mqtthost",cfginfo.payboard.mqtthost);
@@ -1148,7 +1271,7 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["response"] = "payboard";
     doc["merchantid"]=cfginfo.payboard.merchantid;
     doc["uuid"]=cfginfo.payboard.uuid;
-    doc["state"]="changed"; 
+    doc["state"]="Pb_Changed"; 
     if(merchantflag){
       mqclient.disconnect();
       #ifdef FLIPUPMQTT
@@ -1162,11 +1285,16 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
   }else if(action == "stateflag"){ //stateflag is flag for mark action before reboot  ex 1 is for reboot action, 2 for ota action
 
   }else if(action == "jobcancel"){
-    //stateflag = 0;
-    //orderid ="";
-    //cfgStatte = 3;
-    //waitFlag =0;
-    //dispflag = 0;
+
+    serviceEnd();
+    doc.clear();
+    doc["response"] = "jobcancel";
+    doc["merchantid"]=cfginfo.payboard.merchantid;
+    doc["uuid"]=cfginfo.payboard.uuid;
+    doc["state"]="Job_Canceled";
+    doc["desc"]="Manual cancel job.";
+    display.scrollingText("J-CAn",1);
+    delay(5000);
 
   }else if(action == "jobcreate"){
     coinValue = doc["price"].as<int>();
@@ -1179,9 +1307,10 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["response"] = "jobcreate";
     doc["merchantid"]=cfginfo.payboard.merchantid;
     doc["uuid"]=cfginfo.payboard.uuid;
-    doc["state"]="created";
+    doc["state"]="Job_Created";
     doc["desc"]="Manual create job.";
-    display.scrollingText("A-JC",1);
+    display.scrollingText("J-Add",1);
+    delay(5000);
   }else if(action == "nvsdelete"){
     String msg;
 
@@ -1195,10 +1324,44 @@ void pbCallback(char* topic, byte* payload, unsigned int length){
     doc["response"] = "nvsdelete";
     doc["merchantid"]=cfginfo.payboard.merchantid;
     doc["uuid"]=cfginfo.payboard.uuid;
-    doc["state"]="deleted";
+    doc["state"]="NVS_Deleted";
     doc["desc"]=msg;    
 
-    display.scrollingText("A-nd",1);
+    display.scrollingText("n-dEL",1);
+
+    cfgdata.begin("config",false);
+    cfgdata.putInt("stateflag",3);
+    cfgdata.end();
+    delay(3000);
+
+    ESP.restart();
+  }else if(action == "offline"){
+  
+    digitalWrite(ENCOIN,LOW); // ENCoin off
+    cfgState = 10;// CFGState 10 offline
+    timeRemain = 0;
+    disponce = 0;
+    cfgdata.begin("config",false);
+    cfgdata.putInt("stateflag",cfgState);
+    cfgdata.putInt("timeremain",timeRemain);
+    cfgdata.end();   
+
+    doc.clear();
+    doc["response"] = "offline";
+    doc["merchantid"]=cfginfo.payboard.merchantid;
+    doc["uuid"]=cfginfo.payboard.uuid;
+    doc["state"]="offline";
+    doc["desc"]="Asset is in OFFLINE mode";    
+
+  }else if(action == "online"){
+    resetState();
+
+    doc.clear();
+    doc["response"] = "online";
+    doc["merchantid"]=cfginfo.payboard.merchantid;
+    doc["uuid"]=cfginfo.payboard.uuid;
+    doc["state"]="online";
+    doc["desc"]="Asset is in ONLINE mode";       
   }
 
   serializeJson(doc,jsonmsg);
@@ -1266,18 +1429,12 @@ void pbBackendMqtt(){
 
 
 
-
-
-
-
-
 void serviceLeft(){
   Serial.printf("Service Time remain: %d\n",--timeRemain);
   cfgdata.begin("config",false);
   cfgdata.putInt("timeremain",timeRemain);
   cfgdata.end();
 }
-
 
 
 void serviceEnd(){
@@ -1295,10 +1452,13 @@ void serviceEnd(){
   cfgState = 3;
   waitFlag = 0;
   dispflag = 0;
+  pauseflag = false;
 
   firstExtPaid = 0;
   extpaid = 0;
   extraPay = 0;
+  disperr="";
+  disptxt="";
 
   cfgdata.begin("config",false);
   cfgdata.putInt("stateflag",0);
@@ -1312,7 +1472,11 @@ void serviceEnd(){
   backend.appkey=cfginfo.payboard.apikey;
 
   switch(paymentby){
+    case 0:
+      Serial.printf("Asset comming ONLINE\n");
+      break;
     case 1: // by Coin
+      Serial.printf("Coin Job Finished.\n");
       break;
     case 2: //by QR
       Serial.printf("Sending QR acknoloedge to backend\n");
@@ -1329,11 +1493,38 @@ void serviceEnd(){
       }
       break;
     case 3: //by Kiosk
+      Serial.printf("Kiosk Job finished.\n");
       break;
     case 4: // by Admin
+      Serial.printf("Free Job finish.ed\n");
       break;
   }
   Serial.printf("Job Finish.  Poweroff machine soon.\n");
+  WebSerial.println("[serviceEnd]->Job Finish. Power off machine soon.");
+}
 
+void resetState()
+{
+  timeRemain = 0;
+  coinValue = 0;
+  paymentby = 0;
+
+  cfgState = 3;
+  waitFlag = 0;
+  dispflag = 0;
+  pauseflag = false;
+
+  firstExtPaid = 0;
+  extpaid = 0;
+  extraPay = 0;
+  disperr="";
+  disptxt="";
+  disponce = 0;
+
+  cfgdata.begin("config",false);
+  cfgdata.putInt("stateflag",0);
+  cfgdata.putString("orderid","");
+  cfgdata.putInt("timeremain",0);
+  cfgdata.end();
 
 }

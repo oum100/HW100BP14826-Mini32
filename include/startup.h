@@ -27,3 +27,7 @@
 #include <nvs_flash.h>
 
 #include "payboardAPI.h"
+
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <WebSerial.h>

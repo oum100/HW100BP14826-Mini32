@@ -87,3 +87,46 @@ void printLocalTime();
 void WiFiinfo(void);
 
 #endif
+
+/*
+    data in rom by Preferences
+
+    lastboot
+        timestamp
+        epochtime
+
+    Config
+        stateflag
+        timeremain
+
+        assetid
+        orderid
+        firmware
+        coinModule
+        assettype
+
+        uuid
+        machineid
+        merchantkey
+        apihost
+        apikey
+        mqtthost
+        mqttport
+        mqttuser
+        mqttpass
+
+        sku1
+        price1
+        stime1
+        sku2
+        price2
+        stime2
+        sku3
+        price3
+        stime3
+
+        ssid1
+        key1
+        ssid2
+        key2
+*/

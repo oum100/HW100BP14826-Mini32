@@ -14,10 +14,14 @@ void HDV70E1::showPanel(){
         Serial2.write(ctrlbytes, sizeof(ctrlbytes));
         delay(50);
     }
-    activePanel(POWER_RLY,MACHINEDC,ENPANEL);
 }
 
-void HDV70E1::activePanel(int pwrPin,int machinePwr, int panelPIN){
+void HDV70E1::controlByPanel(int pwrPin,int machinePwr, int panelPIN){
+    if(digitalRead(machinePwr)== 0){
+        digitalWrite(pwrPin,HIGH);
+        delay(100);
+        digitalWrite(pwrPin,LOW);
+    }
     digitalWrite(panelPIN,HIGH);
 }
 
@@ -138,6 +142,7 @@ int HDV70E1::runProgram(int pwrPin,int machinePwr,int doorState,rotaryMODE prog,
     }else{
         Serial.printf("[runProgram]-> Power On machine, But machine not ON\n");
         disp.print("PE");
+        delay(3000);
         return 0;
     }
 }

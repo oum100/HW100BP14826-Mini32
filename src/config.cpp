@@ -8,6 +8,7 @@
 
 
 String SoftAP_NAME PROGMEM = "BT_" + getdeviceid();
+String SoftAP_PASS ="1100110011";
 IPAddress SoftAP_IP(192,168,8,20);
 IPAddress SoftAP_GW(192,168,8,1);
 IPAddress SoftAP_SUBNET(255,255,255,0);
@@ -268,7 +269,7 @@ void initCFG(Config &cfg){
     cfg.asset.pass="ad1@#min";
     cfg.asset.mac = "";
     cfg.asset.model ="HaierDryer_V2.0.2";
-    cfg.asset.firmware = "1.0.0";
+    cfg.asset.firmware = "1.0.1";
 
     cfg.backend.apihost="https://cointracker100.herokuapp.com/cointracker/v1.0.0/devices";
     cfg.backend.apikey="87cdf9229caf9a7fa3fd1403bcc5dd97";
@@ -277,38 +278,20 @@ void initCFG(Config &cfg){
     cfg.backend.mqttpass="password";
     cfg.backend.mqttport = 1883;    
 
-    // if(cfg.asset.assettype == 0){//WASHER
-    //   cfg.product[0].sku = "P1";
-    //   cfg.product[0].price = 30;
-    //   cfg.product[0].stime = 25;
 
-    //   cfg.product[1].sku = "P2";
-    //   cfg.product[1].price = 40;
-    //   cfg.product[1].stime = 35;
+    cfg.product[0].sku = "P1";
+    cfg.product[0].price = 30;
+    cfg.product[0].stime = 45;
 
-    //   cfg.product[2].sku = "P3";
-    //   cfg.product[2].price = 50;
-    //   cfg.product[2].stime = 40;   
-    // }else{
-      cfg.product[0].sku = "P1";
-      cfg.product[0].price = 40;
-      cfg.product[0].stime = 60;
+    cfg.product[1].sku = "P2";
+    cfg.product[1].price = 40;
+    cfg.product[1].stime = 60;
 
-      cfg.product[1].sku = "P2";
-      cfg.product[1].price = 50;
-      cfg.product[1].stime = 75;
+    cfg.product[2].sku = "P3";
+    cfg.product[2].price = 50;
+    cfg.product[2].stime = 75;
+   
 
-      cfg.product[2].sku = "P3";
-      cfg.product[2].price = 60;
-      cfg.product[2].stime = 90;
-    // }
-    
-
-    // for(int i=0;i<3;i++){
-    //     cfg.product[i].sku="";
-    //     cfg.product[i].price=0;
-    //     cfg.product[i].stime=0;
-    // }
 }
 
 
@@ -320,13 +303,13 @@ void WiFiinfo(void){
       Serial.println(WiFi.localIP());
       Serial.println();
 
-      WiFi.softAPConfig(SoftAP_IP, SoftAP_GW, SoftAP_SUBNET);
-      WiFi.softAP( SoftAP_NAME.c_str(),"1100110011",8,false,2 );
-      Serial.print("   Soft-AP Name : ");
-      Serial.println(WiFi.softAPSSID());
+      //WiFi.softAPConfig(SoftAP_IP, SoftAP_GW, SoftAP_SUBNET);
+      //WiFi.softAP( SoftAP_NAME.c_str(),SoftAP_PASS.c_str(),8,false,2 );
+      // Serial.print("   Soft-AP Name : ");
+      // Serial.println(WiFi.softAPSSID());
     
-      Serial.print("   Soft-AP IP address : ");
-      Serial.println(WiFi.softAPIP());
+      // Serial.print("   Soft-AP IP address : ");
+      // Serial.println(WiFi.softAPIP());
 }
 
 

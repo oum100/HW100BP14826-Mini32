@@ -336,10 +336,8 @@ compliant with the provided certificate.
 bool secureEsp32FOTA::prepareConnection(String destinationServer)
 {
     char *certificate = _certificate;
-    //mark comment by Teerin (27Feb21 tesing connect https)
-    //clientForOta.setCACert(certificate);
     clientForOta.setCACert(certificate);
-    clientForOta.setInsecure();
+    clientForOta.setInsecure(); // Add by Teerin: comment if using https secure
     if (clientForOta.connect(destinationServer.c_str(), 443))
     {
         return true;
@@ -413,12 +411,15 @@ bool secureEsp32FOTA::execHTTPSCheck()
     char JSONMessage[str_len];
     unparsedDescriptionOfFirmware.toCharArray(JSONMessage, str_len);
 
-    StaticJsonDocument<300> JSONDocument; //Memory pool
+    Serial.print("JSONMessage");
+    Serial.println(JSONMessage);
+
+    StaticJsonDocument<1024> JSONDocument; //Memory pool
     DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
 
     if (err)
     { //Check for errors in parsing
-        Serial.println("[execHTTPSCheck]Parsing failed");
+        Serial.println("[execHTTPSCheck]Parsing failed"); //Edit by Teerin
         delay(5000);
         return false;
     }
@@ -430,7 +431,7 @@ bool secureEsp32FOTA::execHTTPSCheck()
     description->bin = JSONDocument["bin"].as<String>();
 
     clientForOta.stop();
-
+    Serial.printf("New Version:%s\n",description->version.c_str());
     if (description->version != _firwmareVersion && description->type == _firwmareType)
     {
         locationOfFirmware = description->host;
