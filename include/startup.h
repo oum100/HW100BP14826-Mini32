@@ -13,6 +13,8 @@
 #include <SevenSegmentExtended.h>
 #include <SevenSegmentFun.h>
 
+
+
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include "config.h"
@@ -31,3 +33,8 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <WebSerial.h>
+
+// ******** v1.0.5 ********
+#include <FastLED.h>
+//#include <mDash.h>
+// ************************

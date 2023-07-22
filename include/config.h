@@ -39,6 +39,7 @@ struct Asset{
     String user;
     String pass;
     int coinModule;
+    float coinwaittimeout;
     int assettype; //***  0=Washer , 1 = Dryer
     String ntpServer1;
     String ntpServer2;
@@ -79,7 +80,7 @@ void showCFG(Config &cfg);
 void getnvPbCFG(Preferences nvcfg, Config &cfg);
 void getnvBackend(Preferences nvcfg, Config &cfg);
 void getnvAssetCFG(Preferences nvcfg, Config &cfg);
-void getnvProduct(Preferences nvcfg, Config &cfg);
+int getnvProduct(Preferences nvcfg, Config &cfg);
 void getNVCFG(Preferences nvcfg, Config &cfg);
 
 int loadWIFICFG(Preferences nvcfg,Config &cfg);

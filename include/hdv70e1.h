@@ -7,6 +7,11 @@
 #include "animation.h"
     #define POWER_RLY    26
     #define BOOK_LED    18
+
+    // ******** v1.0.5 ********
+    #define RGB_LED     18
+    // ************************
+
     #define DSTATE      19
     #define COINDOOR    23
     #define ENPANEL     5
@@ -83,7 +88,7 @@ class HDV70E1 {
         bool isMachineON(int pin,int &err);// 1 = ON, 0 = Off
 
         void showPanel(void);
-        void controlByPanel(int pwrPin,int machinePwr, int panelPIN);
+        bool controlByPanel(int pwrPin,int machinePwr, int panelPIN);
 };
 
 void boardTest(void);

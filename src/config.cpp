@@ -37,9 +37,11 @@ void getnvAssetCFG(Preferences nvcfg, Config &cfg){
     cfg.asset.orderid = nvcfg.getString("orderid");
     cfg.asset.firmware = nvcfg.getString("firmware");
     cfg.asset.coinModule = nvcfg.getInt("coinModule");
+    cfg.asset.coinwaittimeout = nvcfg.getFloat("coinwaittimeout");
     cfg.asset.assettype = nvcfg.getInt("assettype");
     cfg.asset.user=nvcfg.getString("user");
     cfg.asset.pass=nvcfg.getString("pass");
+    cfg.asset.mac=nvcfg.getString("fixedmac");
   Serial.printf("  Completed get Asset Configuration\n");
   nvcfg.end();
 }
@@ -57,28 +59,33 @@ void getnvBackend(Preferences nvcfg, Config &cfg){
   nvcfg.end();
 }
 
-void getnvProduct(Preferences nvcfg, Config &cfg){
+int getnvProduct(Preferences nvcfg, Config &cfg){
+  int prodcount = 0;
   Serial.printf("  Getting Product Configuration from NV\n");
   nvcfg.begin("config",false);
     if(nvcfg.isKey("sku1")){
         cfg.product[0].sku = nvcfg.getString("sku1");
         cfg.product[0].price = nvcfg.getFloat("price1");
         cfg.product[0].stime = nvcfg.getInt("stime1");
+        prodcount++;
     }
 
     if(nvcfg.isKey("sku2")){
         cfg.product[1].sku = nvcfg.getString("sku2");
         cfg.product[1].price = nvcfg.getFloat("price2");
         cfg.product[1].stime = nvcfg.getInt("stime2");
+        prodcount++;
     }
 
     if(nvcfg.isKey("sku3")){
         cfg.product[2].sku = nvcfg.getString("sku3");
         cfg.product[2].price = nvcfg.getFloat("price3");
         cfg.product[2].stime = nvcfg.getInt("stime3");
+        prodcount++;
     }
   Serial.printf("  Completed get Product Configuration\n");
   nvcfg.end();  
+  return prodcount;
 }
 
 
@@ -106,9 +113,21 @@ void getNVCFG(Preferences nvcfg, Config &cfg){
             cfg.asset.coinModule = nvcfg.getInt("coinModule");
         }
 
+        if(nvcfg.isKey("coinwaittimeout")){
+            cfg.asset.coinwaittimeout = nvcfg.getFloat("coinwaittimeout");
+        }
+
         if(nvcfg.isKey("assettype")){
             cfg.asset.assettype = nvcfg.getInt("assettype");
         }
+
+        if(nvcfg.isKey("ntpserver1")){ // Added  1 Nov 65  v1.0.5
+            cfg.asset.ntpServer1 = nvcfg.getString("ntpserver1");
+        }        
+
+        if(nvcfg.isKey("ntpserver2")){ // Added  1 Nov 65  v1.0.5
+            cfg.asset.ntpServer2 = nvcfg.getString("ntpserver2");
+        }   
 
         if(nvcfg.isKey("merchantid")){
             cfg.payboard.merchantid = nvcfg.getString("merchantid");
@@ -140,8 +159,6 @@ void getNVCFG(Preferences nvcfg, Config &cfg){
             cfg.product[0].sku = nvcfg.getString("sku1");
             cfg.product[0].price = nvcfg.getFloat("price1");
             cfg.product[0].stime = nvcfg.getInt("stime1");
-        }else{
-
         }
 
         if(nvcfg.isKey("sku2")){
@@ -169,6 +186,7 @@ void showCFG(Config &cfg){
     Serial.printf("  MerchantID: %s\n",cfg.asset.merchantid.c_str());
     Serial.printf("  Orderid: %s\n",cfg.asset.orderid.c_str());
     Serial.printf("  CoinType: %d\n",cfg.asset.coinModule);
+    Serial.printf("  CoinWaitTimeout: %.2f\n",cfg.asset.coinwaittimeout);
     Serial.printf("  AssetType: %d\n",cfg.asset.assettype);
     Serial.printf("  Firmware: %s\n",cfg.asset.firmware.c_str());
     Serial.printf("  MacAddress: %s\n",cfg.asset.mac.c_str());
@@ -198,9 +216,9 @@ void showCFG(Config &cfg){
     //Serial.println(sz);
     Serial.printf("\nProduct Information\n");
     for(int i=0;i<3;i++){
-        Serial.printf("  SKU[%d]: %s\n",i,cfg.product[i].sku.c_str());
-        Serial.printf("  Price[%d]: %.2f\n",i,cfg.product[i].price);
-        Serial.printf("  Stime[%d]: %d\n",i,cfg.product[i].stime);
+        Serial.printf("  SKU[%d] Name: %s\n",i,cfg.product[i].sku.c_str());
+        Serial.printf("    Price[%d]: %.2f\n",i,cfg.product[i].price);
+        Serial.printf("    Stime[%d]: %d\n",i,cfg.product[i].stime);
     }
 
     // sz = sizeof(cfg.wifissid);
@@ -218,7 +236,7 @@ void showCFG(Config &cfg){
 void initGPIO(unsigned long long INP, unsigned long long OUTP){
   gpio_config_t io_config;
 
-  Serial.printf("  Execute---Initial GPIO Functio\n");
+  Serial.printf("  Execute---Initial GPIO Function\n");
   //*** Initial INTERRUPT PIN
 //   io_config.intr_type = GPIO_INTR_NEGEDGE;
 //   io_config.pin_bit_mask = INTR;
@@ -248,7 +266,9 @@ void initCFG(Config &cfg){
     cfg.header = "EITC";
     cfg.deviceid = "";
 
-    cfg.payboard.merchantid = "1000000104";
+    //cfg.payboard.uuid ="EPODU5ZG6NIZADQ"; // Comment this for production
+
+    cfg.payboard.merchantid = "10000105"; // K.Tawee:1000000104  RGH18:10000105
     cfg.payboard.merchantkey = "mki9lvhjpp1xt4jxgjdjqxuhx2ihucgkgz9ledsylsu7terwtsnibhhjzrnsiiig";
     cfg.payboard.apihost = "https://apis-dv-partner.payboard.cc";
     cfg.payboard.apikey = "558iim6kjkre38dxk2uj8i6yuew6gwa9";
@@ -261,15 +281,31 @@ void initCFG(Config &cfg){
 
 
     cfg.asset.assetid="";
-    cfg.asset.merchantid ="07202100001";
+    cfg.asset.merchantid ="07202100002"; //  K.Tawee:07202100001   RGH18:07202100002
     cfg.asset.orderid="";
     cfg.asset.assettype=DRYER; // 0 = WASHER, 1 = DRYER
-    cfg.asset.coinModule=SINGLE; //  SINGLE=0, MULTI=1
+    cfg.asset.coinModule=SINGLE; //  SINGLE=0 one pulse per coin , MULTI=1 one pulse per Baht
+    cfg.asset.coinwaittimeout = 0.2; //Minute
     cfg.asset.user="admin";
     cfg.asset.pass="ad1@#min";
     cfg.asset.mac = "";
     cfg.asset.model ="HaierDryer_V2.0.2";
-    cfg.asset.firmware = "1.0.1";
+    cfg.asset.firmware = "1.0.6"; // 25 Aug 22
+    cfg.asset.ntpServer1="1.th.pool.ntp.org";
+    cfg.asset.ntpServer2="asia.pool.ntp.org";
+
+    /*
+      v1.0.5
+        - New feature RGB LED for board Haierdryver v2.1.0
+          -- new board versin  2.1.0 (red)
+          -- FastLED.h in startup.h
+          -- devine RGB_LED in hdv70e1.h
+          -- Fixed MAC address in define zone at top of main.ino
+          -- Action config in main.ino automatic set stime 10Baht per 15mins
+
+    */
+
+  
 
     cfg.backend.apihost="https://cointracker100.herokuapp.com/cointracker/v1.0.0/devices";
     cfg.backend.apikey="87cdf9229caf9a7fa3fd1403bcc5dd97";
@@ -281,7 +317,7 @@ void initCFG(Config &cfg){
 
     cfg.product[0].sku = "P1";
     cfg.product[0].price = 30;
-    cfg.product[0].stime = 45;
+    cfg.product[0].stime = 30;
 
     cfg.product[1].sku = "P2";
     cfg.product[1].price = 40;
@@ -291,7 +327,6 @@ void initCFG(Config &cfg){
     cfg.product[2].price = 50;
     cfg.product[2].stime = 75;
    
-
 }
 
 
